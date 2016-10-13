@@ -1,0 +1,279 @@
+#!/usr/bin/env bash
+
+declare file="$(date +%F-%s)"
+declare mode='webm'
+declare select=0
+declare duration
+declare delay=0
+declare verbose=0
+declare callback
+declare slop_args
+declare -a config_err
+declare -r config_file="${XDG_CONFIG_DIR:-$HOME/.config}/yaxg/conf"
+declare -A dimensions
+declare -r esc=$'\033'
+declare -r c_reset="${esc}[0m"
+declare -r c_red="${esc}[31m"
+declare -r c_blue="${esc}[34m"
+
+usage() {
+  LESS=-FEXR less <<'HELP'
+Usage: yaxg [OPTIONS]
+records and saves regions of X11 displays
+
+OPTIONS:
+
+  -d  specify duration
+  -D  specify delay
+  -f  specify filename (defaults to "$(date +%F-%s)")
+  -F  specify filename and overwrite if exists
+  -s  select a region or window
+  -S  pass a string directly to slop
+  -e  execute a callback with the current $SHELL
+  -g  defaults to saving as gif (will be overridden by file extension)
+  -p  defaults to saving as png (will be overridden by file extension)
+  -w  defaults to saving as webm (will be overridden by file extension)
+
+  -v  increase verbosity (can be stacked)
+      first level will show errors parsing config file, consecutive levels
+      will be passed to ffmpeg
+  -h  print this help
+
+CONFIGURATION:
+
+A configuration file can saved at $XDG_CONFIG_DIR/yaxg/conf
+(defaults to $HOME/.config/yaxg/conf if XDG_CONFIG_DIR is not set)
+The config file accepts the following values:
+
+  callback
+    a callback string to execute
+  filename
+    a default filename to use when none is provided (must not include extension)
+  format
+    default format to use, must be either png, webm, or gif
+  slop
+    arguments to be passed to slop
+
+SPECIAL STRINGS
+Similar to `scrot`, the callback and filename parameters can take format
+specifiers that are expanded when encountered. Characters preceded by
+'%' are interpreted directly by the `date` commmand. See `man date` for examples.
+Characters preceded by '$' are parsed by yaxg and expanded as such:
+
+  $f  image path/filename (ignored when used in the filename)
+
+HELP
+# -k  display keystrokes during recording
+}
+
+info() {
+  printf "${c_blue}%s${c_reset}\n" "$*" >&2
+}
+
+err() {
+  printf "${c_red}%s${c_reset}\n" "$*" >&2
+}
+
+die() {
+  [[ -n "$1" ]] && err "$1"
+  exit 1
+}
+
+has() {
+  local v=0
+  if [[ $1 == '-v' ]]; then
+    v=1
+    shift
+  fi
+  for c in "$@"; do c="${c%% *}"
+    if ! command -v "$c" &> /dev/null; then
+      (( v > 0 )) && err "$c not found"
+      return 1
+    fi
+  done
+}
+
+select_from() {
+  local cmd='command -v'
+  for a in "$@"; do
+    case "$a" in
+      -c) cmd="$2"; shift 2 ;;
+    esac
+  done
+  for c in "$@"; do
+    if $cmd "${c%% *}" &> /dev/null; then
+      echo "$c"
+      return 0
+    fi
+  done
+  return 1
+}
+
+ask() {
+  read -r -n1 -p "$* " ans
+  printf '\n'
+  [[ ${ans^} == Y* ]]
+}
+
+delay() {
+  [[ $delay != 0 ]] && for (( i=delay; i > 0; --i )); do
+    printf '%s..                     \r' "$i" > /dev/tty
+    sleep 1
+  done
+}
+
+get_dimensions() {
+  local scrsize
+  if [[ "$select" == 1 ]]; then
+    has -v slop || die
+    printf 'select a region                     \r' > /dev/tty
+    scrsize=$( slop $slop_args -f "['x']='%x' ['y']='%y' ['w']='%w' ['h']='%h'" ) || die
+    eval "dimensions=( $scrsize )"
+  else
+    has -v xdpyinfo || die
+    scrsize=$( xdpyinfo | awk '/dimensions/{print $2}' )
+    dimensions=( ['x']='0' ['y']='0' ['w']="${scrsize%%x*}" ['h']="${scrsize#*x}" )
+  fi
+}
+
+record_gif() {
+  local fname
+  #TODO: remove byzanz altogether in favor of plain ffmpeg
+  printf 'recording                \r' > /dev/tty
+  byzanz-record \
+    --duration="${duration:-10}" \
+    --x="${dimensions['x']}" \
+    --y="${dimensions['y']}" \
+    --width="${dimensions['w']}" \
+    --height="${dimensions['h']}" \
+    "$file"
+}
+
+record_webm() {
+  local loglevel size offset fname
+  loglevel='fatal'
+  (( verbose > 0 )) && loglevel=$(( 8 + verbose * 8 ))
+  size="${dimensions['w']}x${dimensions['h']}"
+  offset="${DISPLAY}.0+${dimensions['x']},${dimensions['y']}"
+  printf 'recording                \r' > /dev/tty
+  ffmpeg -y -loglevel "$loglevel" \
+    -f x11grab \
+    -s "$size" \
+    -i "$offset" \
+    ${duration:+-t $duration} \
+    -c:v libvpx \
+    -b:v 2400k \
+    -preset veryslow \
+    -r 60 \
+    -threads 4 \
+    -pix_fmt yuv444p \
+    -f webm "$file"
+}
+
+record_picture() {
+  maim -g "${dimensions[w]}x${dimensions[h]}+${dimensions[x]}+${dimensions[y]}" "$file"
+}
+
+parse_file_str() {
+  local str
+  h=$(( dimensions[h] - dimensions[y] ))
+  w=$(( dimensions[x] - dimensions[w] ))
+  str=$( date +"$1" )
+  printf '%s' "$str"
+}
+
+parse_callback_str() {
+  local str
+  str=$( parse_file_str "$1" )
+  str="${str//\$f/$file}"
+  printf '%s' "$str"
+}
+
+parse_config_file() {
+  local line k v NR=0
+  config_err=()
+  while IFS= read -r line; do
+    (( ++NR ))
+    # TODO: remove comments
+    k="${line%% *}"
+    v="${line#* }"
+    case "$k" in
+      callback) callback="$v" ;;
+      filename) file="$v" ;;
+      format)
+        if [[ $v =~ png|webm|gif ]]; then
+          mode="$v"
+        else
+          config_err+=( "unknown format \"$v\" in config file on line $NR" )
+        fi
+        ;;
+      slop) slop_args="$v" ;;
+      *) config_err+=( "unknown key \"$k\" in config file on line $NR" )
+    esac
+  done < "$config_file"
+}
+
+[[ -s "$config_file" ]] && parse_config_file
+
+OPTERR=0
+while getopts "D:d:e:F:f:ghpsS:vw" opt; do
+  case "$opt" in
+    D) delay="$OPTARG" ;;
+    F) file="$OPTARG"; overwrite=1 ;;
+    S) slop_args="$OPTARG" ;;
+    d) duration="$OPTARG" ;;
+    e) callback="$OPTARG" ;;
+    f) file="$OPTARG"; overwrite=0 ;;
+    g) mode='gif' ;;
+    h) usage; exit 0 ;;
+  # k) screenkeys=1 ;;
+    p) mode='picture' ;;
+    s) select=1 ;;
+    v) (( ++verbose )) ;;
+    w) mode='webm' ;;
+  esac
+done
+
+if (( verbose > 0 && ${#config_err[@]} > 0 )); then
+  for e in "${config_err[@]}"; do
+    err "$e"
+  done
+fi
+
+[[ -z "$DISPLAY" ]] && die 'Could not grab DISPLAY'
+
+has -v date realpath || die
+
+file=$( realpath -mL "$file" )
+mkdir -p "${file%/*}" || die "Could not open \"${file%/*}\" for writing."
+
+if [[ -f "$file" && "$overwrite" == 0 ]] && ! ask "overwrite \"${file}\"? "; then
+  die
+fi
+
+get_dimensions
+
+case "$file" in
+  *gif)
+    has byzanz-record || die 'need byzanz-record for recording gifs'
+    mode='gif' ;;
+  *png)
+    has maim || die 'need maim for capturing screenshots'
+    mode='picture' ;;
+  *webm)
+    has ffmpeg || die 'need ffmpeg for recording webms'
+    mode='webm' ;;
+  *)
+    case "$mode" in
+      gif) file+='.gif' ;;
+      webm) file+='.webm' ;;
+      picture) file+='.png' ;;
+    esac
+esac
+file=$( parse_file_str "$file" )
+
+delay
+"record_$mode"
+info "saved as $file"
+
+[[ -n "$callback" ]] && $SHELL -ic "$(parse_callback_str "$callback")"
