@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-declare file="$(date +%F-%s)"
+declare file='%F-%s'
 declare mode='webm'
 declare select=0
 declare duration
@@ -12,9 +12,9 @@ declare -a config_err
 declare -r config_file="${XDG_CONFIG_DIR:-$HOME/.config}/yaxg/conf"
 declare -A dimensions
 declare -r esc=$'\033'
-declare -r c_reset="${esc}[0m"
 declare -r c_red="${esc}[31m"
 declare -r c_blue="${esc}[34m"
+declare -r c_reset="${esc}[0m"
 
 usage() {
   LESS=-FEXR less <<'HELP'
@@ -23,17 +23,18 @@ records and saves regions of X11 displays
 
 OPTIONS:
 
-  -d  specify duration
+  -d  specify duration to record for (only works for webms)
   -D  specify delay
-  -f  specify filename (defaults to "$(date +%F-%s)")
+  -f  specify filename (defaults to '%F-%s')
   -F  specify filename and overwrite if exists
   -s  select a region or window
-  -S  pass a string directly to slop
+  -S  pass a arguments directly to slop
   -e  execute a callback with the current $SHELL
-  -g  defaults to saving as gif (will be overridden by file extension)
-  -p  defaults to saving as png (will be overridden by file extension)
-  -w  defaults to saving as webm (will be overridden by file extension)
-
+  -g  default to saving as gif (will be overridden by file extension)
+  -p  default to saving as png (will be overridden by file extension)
+  -w  default to saving as webm (will be overridden by file extension)
+      this is the default behavior when -g or -p is not present and the
+      filename doesn't end in png or gif
   -v  increase verbosity (can be stacked)
       first level will show errors parsing config file, consecutive levels
       will be passed to ffmpeg
@@ -51,11 +52,12 @@ The config file accepts the following values:
   filename
     a default filename to use when none is provided (must not include extension)
   format
-    default format to use, must be either png, webm, or gif
+    default format to use, must be either 'png', 'webm', or 'gif'
   slop
     arguments to be passed to slop
 
 SPECIAL STRINGS
+
 Similar to `scrot`, the callback and filename parameters can take format
 specifiers that are expanded when encountered. Characters preceded by
 '%' are interpreted directly by the `date` commmand. See `man date` for examples.
@@ -64,7 +66,6 @@ Characters preceded by '$' are parsed by yaxg and expanded as such:
   $f  image path/filename (ignored when used in the filename)
 
 HELP
-# -k  display keystrokes during recording
 }
 
 info() {
@@ -86,28 +87,12 @@ has() {
     v=1
     shift
   fi
-  for c in "$@"; do c="${c%% *}"
+  for c; do c="${c%% *}"
     if ! command -v "$c" &> /dev/null; then
       (( v > 0 )) && err "$c not found"
       return 1
     fi
   done
-}
-
-select_from() {
-  local cmd='command -v'
-  for a in "$@"; do
-    case "$a" in
-      -c) cmd="$2"; shift 2 ;;
-    esac
-  done
-  for c in "$@"; do
-    if $cmd "${c%% *}" &> /dev/null; then
-      echo "$c"
-      return 0
-    fi
-  done
-  return 1
 }
 
 ask() {
@@ -138,9 +123,6 @@ get_dimensions() {
 }
 
 record_gif() {
-  local fname
-  #TODO: remove byzanz altogether in favor of plain ffmpeg
-  printf 'recording                \r' > /dev/tty
   byzanz-record \
     --duration="${duration:-10}" \
     --x="${dimensions['x']}" \
@@ -151,12 +133,11 @@ record_gif() {
 }
 
 record_webm() {
-  local loglevel size offset fname
+  local loglevel size offset
   loglevel='fatal'
   (( verbose > 0 )) && loglevel=$(( 8 + verbose * 8 ))
   size="${dimensions['w']}x${dimensions['h']}"
   offset="${DISPLAY}.0+${dimensions['x']},${dimensions['y']}"
-  printf 'recording                \r' > /dev/tty
   ffmpeg -y -loglevel "$loglevel" \
     -f x11grab \
     -s "$size" \
@@ -171,15 +152,15 @@ record_webm() {
     -f webm "$file"
 }
 
-record_picture() {
+record_png() {
   maim -g "${dimensions[w]}x${dimensions[h]}+${dimensions[x]}+${dimensions[y]}" "$file"
 }
 
 parse_file_str() {
-  local str
-  h=$(( dimensions[h] - dimensions[y] ))
-  w=$(( dimensions[x] - dimensions[w] ))
+  local str h w
   str=$( date +"$1" )
+  str="${str//\$h/${dimensions[h]}}"
+  str="${str//\$w/${dimensions[w]}}"
   printf '%s' "$str"
 }
 
@@ -231,8 +212,7 @@ while getopts "D:d:e:F:f:ghpsS:vw" opt; do
     f) file="$OPTARG"; overwrite=0 ;;
     g) mode='gif' ;;
     h) usage; exit 0 ;;
-  # k) screenkeys=1 ;;
-    p) mode='picture' ;;
+    p) mode='png' ;;
     s) select=1 ;;
     v) (( ++verbose )) ;;
     w) mode='webm' ;;
@@ -264,7 +244,7 @@ case "$file" in
     mode='gif' ;;
   *png)
     has maim || die 'need maim for capturing screenshots'
-    mode='picture' ;;
+    mode='png' ;;
   *webm)
     has ffmpeg || die 'need ffmpeg for recording webms'
     mode='webm' ;;
@@ -272,12 +252,13 @@ case "$file" in
     case "$mode" in
       gif) file+='.gif' ;;
       webm) file+='.webm' ;;
-      picture) file+='.png' ;;
+      png) file+='.png' ;;
     esac
 esac
 file=$( parse_file_str "$file" )
 
 delay
+[[ "$mode" != 'png' ]] && printf 'recording                \r' > /dev/tty
 "record_$mode"
 info "saved as $file"
 
