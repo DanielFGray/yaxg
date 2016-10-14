@@ -48,3 +48,6 @@ specifiers that are expanded when encountered. Characters preceded by
 Characters preceded by '$' are parsed by yaxg and expanded as such:
 
   $f  image path/filename (ignored when used in the filename)
+      this is automatically quoted in the callback
+  $w  image width
+  $h  image height

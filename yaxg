@@ -40,6 +40,10 @@ OPTIONS:
       will be passed to ffmpeg
   -h  print this help
 
+EXAMPLES:
+  yaxg -e 'mv $f mv ~/images/$f'
+  yaxg -s -S '-l -c 0.3,0.4,0.6,0.4' -e 'mv $f mv ~/images/$f && firefox ~/images/$f'
+
 CONFIGURATION:
 
 A configuration file can saved at $XDG_CONFIG_DIR/yaxg/conf
@@ -64,6 +68,9 @@ specifiers that are expanded when encountered. Characters preceded by
 Characters preceded by '$' are parsed by yaxg and expanded as such:
 
   $f  image path/filename (ignored when used in the filename)
+      this is automatically quoted in the callback
+  $w  image width
+  $h  image height
 
 HELP
 }
@@ -167,7 +174,7 @@ parse_file_str() {
 parse_callback_str() {
   local str
   str=$( parse_file_str "$1" )
-  str="${str//\$f/$file}"
+  str="${str//\$f/\"$file\"}"
   printf '%s' "$str"
 }
 
@@ -258,8 +265,8 @@ esac
 file=$( parse_file_str "$file" )
 
 delay
-[[ "$mode" != 'png' ]] && printf 'recording                \r' > /dev/tty
+[[ "$mode" != 'png' ]] && printf 'recording                   \r' > /dev/tty
 "record_$mode"
-info "saved as $file"
-
+[[ ! -e "$file" ]] && die 'error recording file                     '
+info "saved as $file                                     "
 [[ -n "$callback" ]] && $SHELL -ic "$(parse_callback_str "$callback")"
