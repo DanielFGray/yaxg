@@ -43,6 +43,7 @@ CONFIGURATION:
 
 A configuration file can saved at $XDG_CONFIG_DIR/yaxg/conf
 (defaults to $HOME/.config/yaxg/conf if XDG_CONFIG_DIR is not set)
+If a line begins with '#' it is treated as a comment and ignored
 The config file accepts the following values:
 
   callback
@@ -194,9 +195,13 @@ parse_config_file() {
   config_err=()
   while IFS= read -r line; do
     (( ++NR ))
-    # TODO: remove comments
+    [[ -z "$line" || "$line" == '#'* ]] && continue
     k="${line%% *}"
     v="${line#* }"
+    if [[ -z "$v" ]]; then
+      config_err+=( "missing value for \"$k\" in config file on line $NR" )
+      continue
+    fi
     case "$k" in
       callback) callback="$v" ;;
       filename) file="$v" ;;
@@ -235,13 +240,13 @@ while getopts "D:d:e:F:f:ghpsS:vw" opt; do
 done
 
 if (( verbose > 0 && ${#config_err[@]} > 0 )); then
+  err 'there were errors parsing config file:'
   for e in "${config_err[@]}"; do
     err "$e"
   done
 fi
 
 [[ -z "$DISPLAY" ]] && die 'Could not grab DISPLAY'
-
 has -v date realpath || die
 
 file=$( realpath -mL "$file" )
