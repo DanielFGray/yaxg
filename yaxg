@@ -7,7 +7,7 @@ declare duration
 declare delay=0
 declare verbose=0
 declare callback
-declare slop_args
+declare -a slop_args
 declare -a config_err
 declare -r config_file="${XDG_CONFIG_DIR:-$HOME/.config}/yaxg/conf"
 declare -A dimensions
@@ -128,7 +128,7 @@ get_dimensions() {
   if [[ "$select" == 1 ]]; then
     has -v slop || die
     printf 'select a region                     \r' > /dev/tty
-    scrsize=$( slop $slop_args -f "['x']='%x' ['y']='%y' ['w']='%w' ['h']='%h'" ) || die
+    scrsize=$( slop "${slop_args[@]}" -f "['x']='%x' ['y']='%y' ['w']='%w' ['h']='%h'" ) || die
     eval "dimensions=( $scrsize )"
   else
     has -v xdpyinfo || die
@@ -212,7 +212,7 @@ parse_config_file() {
           config_err+=( "unknown format \"$v\" in config file on line $NR" )
         fi
         ;;
-      slop) slop_args="$v" ;;
+      slop) slop_args=( $v ) ;;
       *) config_err+=( "unknown key \"$k\" in config file on line $NR" )
     esac
   done < "$config_file"
@@ -225,7 +225,7 @@ while getopts "D:d:e:F:f:ghpsS:vw" opt; do
   case "$opt" in
     D) delay="$OPTARG" ;;
     F) file="$OPTARG"; overwrite=1 ;;
-    S) slop_args="$OPTARG" ;;
+    S) slop_args=( $OPTARG ) ;;
     d) duration="$OPTARG" ;;
     e) callback="$OPTARG" ;;
     f) file="$OPTARG"; overwrite=0 ;;
