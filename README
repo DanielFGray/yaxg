@@ -4,6 +4,7 @@ records and saves regions of X11 displays
 
 OPTIONS:
 
+  -a  record audio (only works for webms)
   -d  specify duration to record for (only works for webms)
   -D  specify delay
   -f  specify filename (defaults to '%F-%s')

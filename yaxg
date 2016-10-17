@@ -7,6 +7,7 @@ declare duration
 declare delay=0
 declare verbose
 declare callback
+declare sound=0
 declare -a slop_args
 declare -a config_err
 declare -r config_dir="${XDG_CONFIG_DIR:-$HOME/.config}/yaxg"
@@ -25,6 +26,7 @@ records and saves regions of X11 displays
 
 OPTIONS:
 
+  -a  record audio (only works for webms)
   -d  specify duration to record for (only works for webms)
   -D  specify delay
   -f  specify filename (defaults to '%F-%s')
@@ -146,23 +148,39 @@ record_gif() {
 }
 
 record_webm() {
-  local loglevel size offset
+  local loglevel size offset ffmpeg_opts=()
   loglevel='fatal'
   (( verbose > 0 )) && loglevel=$(( 8 + verbose * 8 ))
   size="${dimensions['w']}x${dimensions['h']}"
   offset="${DISPLAY}.0+${dimensions['x']},${dimensions['y']}"
+  (( sound > 0 )) && ffmpeg_opts+=( -f alsa -ac 2 -i hw:1,1 )
   ffmpeg -y -loglevel "$loglevel" \
+    "${ffmpeg_opts[@]}" \
     -f x11grab \
     -s "$size" \
     -i "$offset" \
     ${duration:+-t $duration} \
-    -c:v libvpx \
-    -b:v 2400k \
-    -preset veryslow \
     -r 60 \
-    -threads 4 \
-    -pix_fmt yuv444p \
-    -f webm "$file"
+    -c:v libx264 \
+    -preset veryslow \
+    -crf 10 \
+    "${file%webm}mkv"
+
+  if [[ -f "$file" ]]; then
+    printf 'converting mkv to webm                 \r'
+    ffmpeg -y -loglevel "$loglevel" \
+      -i "${file%webm}mkv" \
+      -c:v libvpx \
+      -qmin 1 \
+      -qmax 10 \
+      -an \
+      -threads 4 \
+      -slices 8 \
+      -auto-alt-ref 1 \
+      -lag-in-frames 16 \
+      -pass 2 "$file" &&
+      rm "${file%webm}mkv"
+  fi
 }
 
 record_png() {
@@ -217,6 +235,7 @@ parse_config_file() {
 OPTERR=0
 while getopts "D:d:e:F:f:ghpsS:vw" opt; do
   case "$opt" in
+    a) sound=1 ;;
     D) delay="$OPTARG" ;;
     F) file="$OPTARG"; overwrite=1 ;;
     S) slop_args=( $OPTARG ) ;;
