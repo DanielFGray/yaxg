@@ -1,6 +1,7 @@
 Usage: yaxg [OPTIONS]
 records and saves regions of X11 displays
 
+
 OPTIONS:
 
   -d  specify duration to record for (only works for webms)
@@ -9,7 +10,7 @@ OPTIONS:
   -F  specify filename and overwrite if exists
   -s  select a region or window
   -S  pass a arguments directly to slop
-  -e  execute a callback with the current $SHELL
+  -e  execute a script in the config dir or a callback string with the current $SHELL
   -g  default to saving as gif (will be overridden by file extension)
   -p  default to saving as png (will be overridden by file extension)
   -w  default to saving as webm (will be overridden by file extension)
@@ -20,9 +21,6 @@ OPTIONS:
       will be passed to ffmpeg
   -h  print this help
 
-EXAMPLES:
-  yaxg -e 'mv $f mv ~/images/$f'
-  yaxg -s -S '-l -c 0.3,0.4,0.6,0.4' -e 'mv $f mv ~/images/$f && firefox ~/images/$f'
 
 CONFIGURATION:
 
@@ -40,6 +38,7 @@ The config file accepts the following values:
   slop
     arguments to be passed to slop
 
+
 SPECIAL STRINGS
 
 Similar to `scrot`, the callback and filename parameters can take format
@@ -47,7 +46,14 @@ specifiers that are expanded when encountered. Characters preceded by
 '%' are interpreted directly by the `date` commmand. See `man date` for examples.
 Characters preceded by '$' are parsed by yaxg and expanded as such:
 
-  $f  image path/filename (ignored when used in the filename)
-      this is automatically quoted in the callback
+  $f  quoted image path/filename (only available in callback)
   $w  image width
   $h  image height
+
+
+EXAMPLES:
+
+  yaxg -e 'mv $f mv ~/images/$f'
+  yaxg -s -S '-l -c 0.3,0.4,0.6,0.4' -e 'mv $f mv ~/images/$f && firefox ~/images/$f'
+  printf '#!/usr/bin/env bash\n[[ "$1" =~ png$ ]] && optipng "$1"\n' \
+    > ~/.config/yaxg/myScript && chmod +x !#:3 && yaxg -e 'myScript'
