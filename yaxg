@@ -5,11 +5,12 @@ declare mode='webm'
 declare select=0
 declare duration
 declare delay=0
-declare verbose=0
+declare verbose
 declare callback
 declare -a slop_args
 declare -a config_err
-declare -r config_file="${XDG_CONFIG_DIR:-$HOME/.config}/yaxg/conf"
+declare -r config_dir="${XDG_CONFIG_DIR:-$HOME/.config}/yaxg"
+declare -r config_file="${config_dir}/conf"
 declare -A dimensions
 declare -r esc=$'\033'
 declare -r c_red="${esc}[31m"
@@ -21,6 +22,7 @@ usage() {
 Usage: yaxg [OPTIONS]
 records and saves regions of X11 displays
 
+
 OPTIONS:
 
   -d  specify duration to record for (only works for webms)
@@ -29,7 +31,7 @@ OPTIONS:
   -F  specify filename and overwrite if exists
   -s  select a region or window
   -S  pass a arguments directly to slop
-  -e  execute a callback with the current $SHELL
+  -e  a callback string or script in the config dir to execute
   -g  default to saving as gif (will be overridden by file extension)
   -p  default to saving as png (will be overridden by file extension)
   -w  default to saving as webm (will be overridden by file extension)
@@ -40,9 +42,12 @@ OPTIONS:
       will be passed to ffmpeg
   -h  print this help
 
+
 EXAMPLES:
+
   yaxg -e 'mv $f mv ~/images/$f'
   yaxg -s -S '-l -c 0.3,0.4,0.6,0.4' -e 'mv $f mv ~/images/$f && firefox ~/images/$f'
+
 
 CONFIGURATION:
 
@@ -59,6 +64,7 @@ The config file accepts the following values:
     default format to use, must be either 'png', 'webm', or 'gif'
   slop
     arguments to be passed to slop
+
 
 SPECIAL STRINGS
 
@@ -120,11 +126,11 @@ get_dimensions() {
   if [[ "$select" == 1 ]]; then
     has -v slop || die
     printf 'select a region                     \r' > /dev/tty
-    scrsize=$( slop "${slop_args[@]}" -f "['x']='%x' ['y']='%y' ['w']='%w' ['h']='%h'" ) || die
+    scrsize=$(slop "${slop_args[@]}" -f "['x']='%x' ['y']='%y' ['w']='%w' ['h']='%h'") || die
     eval "dimensions=( $scrsize )"
   else
     has -v xdpyinfo || die
-    scrsize=$( xdpyinfo | awk '/dimensions/{print $2}' )
+    scrsize=$(xdpyinfo | awk '/dimensions/{print $2}')
     dimensions=( ['x']='0' ['y']='0' ['w']="${scrsize%%x*}" ['h']="${scrsize#*x}" )
   fi
 }
@@ -165,7 +171,7 @@ record_png() {
 
 parse_file_str() {
   local str h w
-  str=$( date +"$1" )
+  str=$(date +"$1")
   str="${str//\$h/${dimensions[h]}}"
   str="${str//\$w/${dimensions[w]}}"
   printf '%s' "$str"
@@ -173,21 +179,21 @@ parse_file_str() {
 
 parse_callback_str() {
   local str
-  str=$( parse_file_str "$1" )
+  str=$(parse_file_str "$1")
   str="${str//\$f/\"$file\"}"
   printf '%s' "$str"
 }
 
 parse_config_file() {
-  local line k v NR=0
+  local line k v nr=0
   config_err=()
   while IFS= read -r line; do
-    (( ++NR ))
+    (( ++nr ))
     [[ -z "$line" || "$line" == '#'* ]] && continue
     k="${line%% *}"
     v="${line#* }"
     if [[ -z "$v" ]]; then
-      config_err+=( "missing value for \"$k\" in config file on line $NR" )
+      config_err+=( "missing value for \"$k\" in config file on line $nr" )
       continue
     fi
     case "$k" in
@@ -197,16 +203,16 @@ parse_config_file() {
         if [[ $v =~ png|webm|gif ]]; then
           mode="$v"
         else
-          config_err+=( "unknown format \"$v\" in config file on line $NR" )
+          config_err+=( "unknown format \"$v\" in config file on line $nr" )
         fi
         ;;
       slop) slop_args=( $v ) ;;
-      *) config_err+=( "unknown key \"$k\" in config file on line $NR" )
+      *) config_err+=( "unknown key \"$k\" in config file on line $nr" )
     esac
-  done < "$config_file"
+  done
 }
 
-[[ -s "$config_file" ]] && parse_config_file
+[[ -s "$config_file" ]] && parse_config_file < "$config_file"
 
 OPTERR=0
 while getopts "D:d:e:F:f:ghpsS:vw" opt; do
@@ -236,10 +242,10 @@ fi
 [[ -z "$DISPLAY" ]] && die 'Could not grab DISPLAY'
 has -v date realpath || die
 
-file=$( realpath -mL "$file" )
-mkdir -p "${file%/*}" || die "Could not open \"${file%/*}\" for writing."
+file=$(realpath -mL "$file")
+mkdir -${verbose:+v}p "${file%/*}" || die "Could not open \"${file%/*}\" for writing."
 
-if [[ -f "$file" && "$overwrite" == 0 ]] && ! ask "overwrite \"${file}\"? "; then
+if [[ -f "$file" && "$overwrite" == 0 ]] && ! ask "overwrite \"$file\"? "; then
   die
 fi
 
@@ -262,11 +268,18 @@ case "$file" in
       png) file+='.png' ;;
     esac
 esac
-file=$( parse_file_str "$file" )
+file=$(parse_file_str "$file")
 
 delay
 [[ "$mode" != 'png' ]] && printf 'recording                   \r' > /dev/tty
 "record_$mode"
 [[ ! -e "$file" ]] && die 'error recording file                     '
 info "saved as $file                                     "
-[[ -n "$callback" ]] && $SHELL -ic "$(parse_callback_str "$callback")"
+
+if [[ -n "$callback" ]]; then
+  if [[ -x "${config_dir}/${callback%% *}" ]]; then
+    $SHELL -ic "$(parse_callback_str "$config_dir/$callback \$f")"
+  else
+    $SHELL -ic "$(parse_callback_str "$callback")"
+  fi
+fi
