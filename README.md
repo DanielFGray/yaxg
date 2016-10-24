@@ -36,7 +36,7 @@ records and saves regions of X11 displays
 
 ### Configuration
 
-A configuration file can saved at $XDG_CONFIG_DIR/yaxg/conf (defaults to $HOME/.config/yaxg/conf if XDG_CONFIG_DIR is not set).  
+A configuration file can saved at `$XDG_CONFIG_DIR/yaxg/conf` (defaults to `$HOME/.config/yaxg/conf` if `XDG_CONFIG_DIR` is not set).  
 If a line begins with '#' it is treated as a comment and ignored.  
 The config file accepts the following values:
 
