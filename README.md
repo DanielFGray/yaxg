@@ -10,7 +10,7 @@ Yet Another X Grabber script
 * [byzanz](http://git.gnome.org/browse/byzanz) - for recording gifs (soon to be replaced with ffmpeg)
 
 ## Usage
-Usage: yaxg [OPTIONS]
+Usage: yaxg [OPTIONS]  
 records and saves regions of X11 displays
 
 ### Options
@@ -36,9 +36,8 @@ records and saves regions of X11 displays
 
 ### Configuration
 
-A configuration file can saved at $XDG_CONFIG_DIR/yaxg/conf
-(defaults to $HOME/.config/yaxg/conf if XDG_CONFIG_DIR is not set)
-If a line begins with '#' it is treated as a comment and ignored
+A configuration file can saved at $XDG_CONFIG_DIR/yaxg/conf (defaults to $HOME/.config/yaxg/conf if XDG_CONFIG_DIR is not set).  
+If a line begins with '#' it is treated as a comment and ignored.  
 The config file accepts the following values:
 
 ```
@@ -54,10 +53,8 @@ The config file accepts the following values:
 
 ### Special Strings
 
-Similar to `scrot`, the callback and filename parameters can take format
-specifiers that are expanded when encountered. Characters preceded by
-'%' are interpreted directly by the `date` commmand. See `man strftime` for examples.
-Characters preceded by '$' are parsed by yaxg and expanded as such:
+Similar to `scrot`, the callback and filename parameters can take format specifiers that are expanded when encountered. Characters preceded by
+'%' are interpreted directly by the `date` commmand. See `man strftime` for examples. Characters preceded by '$' are parsed by yaxg and expanded as such:
 
 ```
   $f  quoted image path/filename (only available in callback)
