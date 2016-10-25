@@ -12,10 +12,9 @@ declare -a config_err
 declare -r config_dir="${XDG_CONFIG_DIR:-$HOME/.config}/yaxg"
 declare -r config_file="${config_dir}/conf"
 declare -A dimensions
-declare -r esc=$'\033'
-declare -r c_red="${esc}[31m"
-declare -r c_blue="${esc}[34m"
-declare -r c_reset="${esc}[0m"
+declare -r c_red=$(tput setaf 1)
+declare -r c_blue=$(tput setaf 4)
+declare -r c_reset=$(tput sgr0)
 
 usage() {
   LESS=-FEXR less <<'HELP'
