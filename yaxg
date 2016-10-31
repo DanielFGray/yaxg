@@ -80,12 +80,28 @@ EXAMPLES:
 HELP
 }
 
+in_term() {
+  [[ -t 0 || -p /dev/stdin ]]
+}
+
 info() {
-  printf "${c_blue}%s${c_reset}\n" "$*" >&2
+  local str
+  if in_term; then
+    printf "${c_blue}%s${c_reset}\n" "$@" > /dev/tty
+  else
+    str=$(printf '%s' "$@")
+    notify-send 'yaxg' "$str"
+  fi
 }
 
 err() {
-  printf "${c_red}%s${c_reset}\n" "$*" >&2
+  local str
+  if in_term; then
+    printf "${c_red}%s${c_reset}\n" "$@" >&2
+  else
+    str=$(printf '%s' "$@")
+    notify-send -u critical 'yaxg' "$str"
+  fi
 }
 
 die() {
@@ -270,10 +286,10 @@ esac
 file=$(parse_file_str "$file")
 
 delay
-[[ "$mode" != 'png' ]] && printf 'recording                   \r' > /dev/tty
+[[ "$mode" != 'png' ]] && info 'recording'
 "record_$mode"
-[[ ! -e "$file" ]] && die 'error recording file                     '
-info "saved as $file                                     "
+[[ -e "$file" ]] || die 'error recording file'
+info "saved as $file"
 
 if [[ -n "$callback" ]]; then
   if [[ -x "${config_dir}/${callback%% *}" ]]; then
