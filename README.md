@@ -10,15 +10,13 @@ Yet Another X Grabber script
 * [byzanz](http://git.gnome.org/browse/byzanz) - for recording gifs (soon to be replaced with ffmpeg)
 
 ## Usage
-Usage: yaxg [OPTIONS]  
-records and saves regions of X11 displays
+yaxg [OPTIONS] [FILE]  
 
 ### Options
 
 ```
   -d  specify duration to record for (only works for webms)
   -D  specify delay
-  -f  specify filename (defaults to '%F-%s')
   -F  specify filename and overwrite if exists
   -s  select a region or window
   -S  pass a arguments directly to slop
@@ -26,29 +24,10 @@ records and saves regions of X11 displays
   -g  default to saving as gif (will be overridden by file extension)
   -p  default to saving as png (will be overridden by file extension)
   -w  default to saving as webm (will be overridden by file extension)
-      this is the default behavior when -g or -p is not present and the
-      filename doesn't end in png or gif
+      this is the default behavior when -g or -p is not present and the filename doesn't end in png or gif
   -v  increase verbosity (can be stacked)
-      first level will show errors parsing config file, consecutive levels
-      will be passed to ffmpeg
+      first level will show errors parsing config file, consecutive levels will be passed to ffmpeg
   -h  print this help
-```
-
-### Configuration
-
-A configuration file can saved at `$XDG_CONFIG_DIR/yaxg/conf` (defaults to `$HOME/.config/yaxg/conf` if `XDG_CONFIG_DIR` is not set).  
-If a line begins with '#' it is treated as a comment and ignored.  
-The config file accepts the following values:
-
-```
-  callback
-    a callback string to execute
-  filename
-    a default filename to use when none is provided (must not include extension)
-  format
-    default format to use, must be either 'png', 'webm', or 'gif'
-  slop
-    arguments to be passed to slop
 ```
 
 ### Special Strings
@@ -62,11 +41,46 @@ Similar to `scrot`, the callback and filename parameters can take format specifi
   $h  image height
 ```
 
-### Examples
+### Configuration
+
+A configuration file can saved at `$XDG_CONFIG_DIR/yaxg/conf` (defaults to `$HOME/.config/yaxg/conf` if `XDG_CONFIG_DIR` is not set).  
+If a line begins with '#' it is treated as a comment and ignored.  
+The config file accepts the following values:
 
 ```
-  yaxg -e 'mv $f mv ~/images/$f'
-  yaxg -s -S '-l -c 0.3,0.4,0.6,0.4' -e 'mv $f mv ~/images/$f && firefox ~/images/$f'
-  printf '#!/usr/bin/env bash\n[[ "$1" =~ png$ ]] && optipng "$1"\n' \
-    > ~/.config/yaxg/myScript && chmod +x !#:3 && yaxg -e 'myScript'
+  callback
+    a callback string to execute
+    if callback is a script in the config dir, the the quoted filename will automatically be passed to the script
+  filename
+    a default filename to use when none is provided (must not include extension)
+  format
+    default format to use, must be either 'png', 'webm', or 'gif'
+  slop
+    arguments to be passed to slop
 ```
+
+### Examples
+
+* Example config file:
+
+```
+  filename  %c - $wx$h
+  format    png
+  slop      -l -c 0.3,0.4,0.6,0.4
+  callback  myScript
+```
+
+* Example CLI usage:
+
+```
+  yaxg '%s-$w-$h'
+  yaxg '%s-$w-$h' -e 'mv $f ~/images/$f'
+  yaxg -s -S '-l -c 0.3,0.4,0.6,0.4' -e 'mv $f ~/images/$f && firefox ~/images/$f'
+  printf '#!/usr/bin/env bash\n\n[[ "$1" =~ png$ ]] && optipng "$1"\n' > ~/.config/yaxg/myScript && chmod +x !#:3 && yaxg -e 'myScript'
+```
+
+The wiki has some [example callback scripts](https://github.com/DanielFGray/yaxg/wiki/Example-callback-scripts).
+
+## See also
+
+* [tekup](/DanielFGray/tekup) - upload files to https://teknik.io via `yaxg -e 'tekup $f'`
