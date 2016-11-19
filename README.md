@@ -61,15 +61,6 @@ The config file accepts the following values:
 
 ### Examples
 
-* Example config file:
-
-```
-  filename  %c - $wx$h
-  format    png
-  slop      -l -c 0.3,0.4,0.6,0.4
-  callback  myScript
-```
-
 * Example CLI usage:
 
 ```
@@ -77,6 +68,15 @@ The config file accepts the following values:
   yaxg '%s-$w-$h' -e 'mv $f ~/images/$f'
   yaxg -s -S '-l -c 0.3,0.4,0.6,0.4' -e 'mv $f ~/images/$f && firefox ~/images/$f'
   printf '#!/usr/bin/env bash\n\n[[ "$1" =~ png$ ]] && optipng "$1"\n' > ~/.config/yaxg/myScript && chmod +x !#:3 && yaxg -e 'myScript'
+```
+
+* Example config file:
+
+```
+  filename  %c - $wx$h
+  format    png
+  slop      -l -c 0.3,0.4,0.6,0.4
+  callback  myScript
 ```
 
 The wiki has some [example callback scripts](https://github.com/DanielFGray/yaxg/wiki/Example-callback-scripts).
