@@ -12,13 +12,14 @@ declare -a config_err
 declare -r config_dir="${XDG_CONFIG_DIR:-$HOME/.config}/yaxg"
 declare -r config_file="${config_dir}/conf"
 declare -A dimensions
-declare -r c_red=$(tput setaf 1)
-declare -r c_blue=$(tput setaf 4)
-declare -r c_reset=$(tput sgr0)
+declare -A colors
+colors[red]=$(tput setaf 1)
+colors[blue]=$(tput setaf 4)
+colors[reset]=$(tput sgr0)
 
 usage() {
   LESS=-FEXR less <<'HELP'
-Usage: yaxg [OPTIONS]
+Usage: yaxg [OPTIONS] [FILE]
 records and saves regions of X11 displays
 
 
@@ -26,8 +27,7 @@ OPTIONS:
 
   -d  specify duration to record for (only works for webms)
   -D  specify delay
-  -f  specify filename (defaults to '%F-%s')
-  -F  specify filename and overwrite if exists
+  -F  overwrite file if it exists
   -s  select a region or window
   -S  pass a arguments directly to slop
   -e  execute a script in the config dir or a callback string with the current $SHELL
@@ -87,7 +87,7 @@ in_term() {
 info() {
   local str
   if in_term; then
-    printf "${c_blue}%s${c_reset}\n" "$@" > /dev/tty
+    printf "${colors[blue]}%s${colors[reset]}\n" "$@" > /dev/tty
   else
     str=$(printf '%s' "$@")
     notify-send 'yaxg' "$str"
@@ -97,7 +97,7 @@ info() {
 err() {
   local str
   if in_term; then
-    printf "${c_red}%s${c_reset}\n" "$@" >&2
+    printf "${colors[red]}%s${colors[reset]}\n" "$@" >&2
   else
     str=$(printf '%s' "$@")
     notify-send -u critical 'yaxg' "$str"
@@ -111,7 +111,7 @@ die() {
 
 has() {
   local v=0
-  if [[ $1 == '-v' ]]; then
+  if [[ $1 = '-v' ]]; then
     v=1
     shift
   fi
@@ -124,24 +124,32 @@ has() {
 }
 
 ask() {
-  read -r -n1 -p "$* " ans
-  printf '\n'
-  [[ ${ans^} == Y* ]]
+  if in_term; then
+    read -r -n1 -p "$* " ans
+    printf '\n'
+    [[ ${ans^} = Y* ]]
+  else
+    zenity --question --text="$*"
+  fi
 }
 
 delay() {
-  [[ $delay != 0 ]] && for (( i=delay; i > 0; --i )); do
-    printf '%s..                     \r' "$i" > /dev/tty
+  (( delay > 0 )) && for (( i=delay; i > 0; --i )); do
+    (( verbose > 0 )) && if in_term; then
+      printf '%s..                     \r' "$i" > /dev/tty
+    else
+      notify-send -t 1000 "$i"
+    fi
     sleep 1
   done
 }
 
 get_dimensions() {
   local scrsize
-  if [[ "$select" == 1 ]]; then
+  if (( select == 1 )); then
     has -v slop || die
-    printf 'select a region                     \r' > /dev/tty
-    scrsize=$(slop "${slop_args[@]}" -f "['x']='%x' ['y']='%y' ['w']='%w' ['h']='%h'") || die
+    (( verbose > 0 )) && info 'select a region'
+    scrsize=$(slop "${slop_args[@]}" -f "['x']='%x' ['y']='%y' ['w']='%w' ['h']='%h'") || die 'cancelled'
     eval "dimensions=( $scrsize )"
   else
     has -v xdpyinfo || die
@@ -181,7 +189,9 @@ record_webm() {
 }
 
 record_png() {
-  maim -g "${dimensions[w]}x${dimensions[h]}+${dimensions[x]}+${dimensions[y]}" "$file"
+  local geometry
+  printf -v geometry "%sx%s+%s+%s" "${dimensions[w]}" "${dimensions[h]}" "${dimensions[x]}" "${dimensions[y]}"
+  maim -g "$geometry" "$file"
 }
 
 parse_file_str() {
@@ -204,7 +214,7 @@ parse_config_file() {
   config_err=()
   while IFS= read -r line; do
     (( ++nr ))
-    [[ -z "$line" || "$line" == '#'* ]] && continue
+    [[ -z "$line" || "$line" = '#'* ]] && continue
     k="${line%% *}"
     v="${line#* }"
     if [[ -z "$v" ]]; then
@@ -230,22 +240,29 @@ parse_config_file() {
 [[ -s "$config_file" ]] && parse_config_file < "$config_file"
 
 OPTERR=0
-while getopts "D:d:e:F:f:ghpsS:vw" opt; do
+while getopts "d:D:e:FghpsS:vw" opt; do
   case "$opt" in
-    D) delay="$OPTARG" ;;
-    F) file="$OPTARG"; overwrite=1 ;;
-    S) slop_args=( $OPTARG ) ;;
     d) duration="$OPTARG" ;;
+    D) delay="$OPTARG" ;;
     e) callback="$OPTARG" ;;
-    f) file="$OPTARG"; overwrite=0 ;;
+    F) overwrite=1 ;;
     g) mode='gif' ;;
     h) usage; exit 0 ;;
     p) mode='png' ;;
     s) select=1 ;;
+    S) slop_args=( $OPTARG ) ;;
     v) (( ++verbose )) ;;
     w) mode='webm' ;;
   esac
 done
+shift $((OPTIND-1))
+
+if (( $# == 1 )); then
+  file="$1"
+  shift
+elif (( $# > 1 )); then
+  die 'too many filenames arguments'
+fi
 
 if (( verbose > 0 && ${#config_err[@]} > 0 )); then
   err 'there were errors parsing config file:'
@@ -254,26 +271,26 @@ if (( verbose > 0 && ${#config_err[@]} > 0 )); then
   done
 fi
 
-[[ -z "$DISPLAY" ]] && die 'Could not grab DISPLAY'
+[[ -n "$DISPLAY" ]] || die 'Could not grab DISPLAY'
 has -v date realpath || die
 
 file=$(realpath -mL "$file")
 mkdir -${verbose:+v}p "${file%/*}" || die "Could not open \"${file%/*}\" for writing."
 
-if [[ -f "$file" && "$overwrite" == 0 ]] && ! ask "overwrite \"$file\"? "; then
-  die
+if [[ -f "$file" ]] && (( overwrite == 0 )); then
+  ask "\"$file\" already exists. Overwrite? " || die
 fi
 
 get_dimensions
 
 case "$file" in
-  *gif)
+  *.gif)
     has byzanz-record || die 'need byzanz-record for recording gifs'
     mode='gif' ;;
-  *png)
+  *.png)
     has maim || die 'need maim for capturing screenshots'
     mode='png' ;;
-  *webm)
+  *.webm)
     has ffmpeg || die 'need ffmpeg for recording webms'
     mode='webm' ;;
   *)
