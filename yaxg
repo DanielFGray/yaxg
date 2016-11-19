@@ -139,7 +139,7 @@ delay() {
     (( verbose > 0 )) && if in_term; then
       printf '%s..                     \r' "$i" > /dev/tty
     else
-      notify-send -t 1000 "$i"
+      notify-send -t 1000 "$i.."
     fi
     sleep 1
   done
@@ -216,24 +216,24 @@ parse_config_file() {
   while IFS= read -r line; do
     (( ++nr ))
     [[ -z "$line" || "$line" = '#'* ]] && continue
-    k="${line%% *}"
-    v="${line#* }"
-    if [[ -z "$v" ]]; then
-      config_err+=( "missing value for \"$k\" in config file on line $nr" )
+    read -r key <<< "${line%% *}"
+    read -r val <<< "${line#* }"
+    if [[ -z "$val" ]]; then
+      config_err+=( "missing value for \"$key\" in config file on line $nr" )
       continue
     fi
-    case "$k" in
-      callback) callback="$v" ;;
-      filename) file="$v" ;;
+    case "$key" in
+      callback) callback="$val" ;;
+      filename) file="$val" ;;
       format)
-        if [[ $v =~ png|webm|gif ]]; then
-          mode="$v"
+        if [[ $val =~ png|webm|gif ]]; then
+          mode="$val"
         else
-          config_err+=( "unknown format \"$v\" in config file on line $nr" )
+          config_err+=( "unknown format \"$val\" in config file on line $nr" )
         fi
         ;;
-      slop) slop_args=( $v ) ;;
-      *) config_err+=( "unknown key \"$k\" in config file on line $nr" )
+      slop) slop_args=( $val ) ;;
+      *) config_err+=( "unknown key \"$key\" in config file on line $nr" )
     esac
   done
 }
