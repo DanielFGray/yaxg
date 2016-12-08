@@ -36,9 +36,9 @@ Similar to `scrot`, the callback and filename parameters can take format specifi
 `%` are interpreted directly by the `date` commmand. See `man strftime` for examples. Characters preceded by `$` are parsed by yaxg and expanded as such:
 
 ```
-  $f  quoted image path/filename (only available in callback)
-  $w  image width
-  $h  image height
+$f  quoted image path/filename (only available in callback)
+$w  image width
+$h  image height
 ```
 
 ### Configuration
