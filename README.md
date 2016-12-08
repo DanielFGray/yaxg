@@ -49,21 +49,21 @@ The config file accepts the following values:
 
 ```
 callback
-	a callback string to execute
-	if callback is a script in the config dir, the the quoted filename will automatically be passed to the script
+  a callback string to execute
+  if callback is a script in the config dir, the the quoted filename will automatically be passed to the script
 filename
-	a default filename to use when none is provided (must not include extension)
+  a default filename to use when none is provided (must not include extension)
 format
-	default format to use, must be either 'png', 'webm', or 'gif'
+  default format to use, must be either 'png', 'webm', or 'gif'
 slop
-	arguments to be passed to slop
+  arguments to be passed to slop
 ```
 
 ### Examples
 
 * Example CLI usage:
 
-```
+``` bash
 yaxg '%s-$w-$h'
 yaxg '%s-$w-$h' -e 'mv $f ~/images/$f'
 yaxg -s -S '-l -c 0.3,0.4,0.6,0.4' -e 'mv $f ~/images/$f && firefox ~/images/$f'
