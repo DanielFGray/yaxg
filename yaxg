@@ -31,11 +31,12 @@ OPTIONS:
   -s  select a region or window
   -S  pass a arguments directly to slop
   -e  execute a script in the config dir or a callback string with the current $SHELL
-  -g  default to saving as gif (will be overridden by file extension)
-  -p  default to saving as png (will be overridden by file extension)
-  -w  default to saving as webm (will be overridden by file extension)
+  -g  save as gif (will be overridden by file extension)
+  -p  save as png (will be overridden by file extension)
+  -w  save as webm (will be overridden by file extension)
       this is the default behavior when -g or -p is not present and the
       filename doesn't end in png or gif
+      press Ctrl+C to stop recording or run `yaxg stop`
   -v  increase verbosity (can be stacked)
       first level will show errors parsing config file, consecutive levels
       will be passed to ffmpeg
