@@ -4,10 +4,11 @@ Yet Another X Grabber script
 
 ## Dependencies
 
-* [slop](https://github.com/naelstrof/slop) - for selecting regions and windows
-* [maim](https://github.com/naelstrof/maim) - for saving screenshots
-* [ffmpeg](http://ffmpeg.org/) - for recording videos
-* [byzanz](http://git.gnome.org/browse/byzanz) - for recording gifs (soon to be replaced with ffmpeg)
+* *[slop](https://github.com/naelstrof/slop)* - for selecting regions and windows
+* *[maim](https://github.com/naelstrof/maim)* - for saving screenshots
+* *[ffmpeg](http://ffmpeg.org/)* - for recording videos
+* *[byzanz](http://git.gnome.org/browse/byzanz)* - for recording gifs (soon to be replaced with ffmpeg)
+* *libnotify* / *notify-send* - for notifications
 
 ## Usage
 yaxg [OPTIONS] [FILE]  
