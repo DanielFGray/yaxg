@@ -238,6 +238,11 @@ parse_config_file() {
   done
 }
 
+if [[ "$1" = 'stop' ]]; then
+  pkill -f x11grab || die 'x11grab not running'
+  exit
+fi
+
 [[ -s "$config_file" ]] && parse_config_file < "$config_file"
 
 OPTERR=0
