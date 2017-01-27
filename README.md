@@ -85,4 +85,4 @@ The wiki has some [example callback scripts](https://github.com/DanielFGray/yaxg
 
 ## See also
 
-* [tekup](/DanielFGray/tekup) - upload files to https://teknik.io via `yaxg -e 'tekup $f'`
+* [tekup](https://github.com/DanielFGray/tekup) - upload files to https://teknik.io via `yaxg -e 'tekup $f'`
