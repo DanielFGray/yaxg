@@ -55,7 +55,7 @@ callback
   if callback is a script in the config dir, the the quoted filename will automatically be passed to the script
 filename
   a default filename to use when none is provided (must not include extension)
-	defaults to %FT%R:%S:%:z_\$wx\$h
+	defaults to %FT%R:%S:%:z_$wx$h
 format
   default format to use, must be either 'png', 'webm', or 'gif'
 slop
