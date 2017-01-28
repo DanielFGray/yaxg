@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-declare file='%F-%s'
+declare file='%FT%R:%S%:z_$wx$h'
 declare mode='webm'
 declare select=0
 declare duration
@@ -8,7 +8,6 @@ declare delay=0
 declare verbose
 declare callback
 declare -a slop_args
-declare -a config_err
 declare -r config_dir="${XDG_CONFIG_DIR:-$HOME/.config}/yaxg"
 declare -r config_file="${config_dir}/conf"
 declare -A dimensions
