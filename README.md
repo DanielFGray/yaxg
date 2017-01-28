@@ -45,8 +45,8 @@ $h  image height
 
 ### Configuration
 
-A configuration file can saved at `$XDG_CONFIG_DIR/yaxg/conf` (defaults to `$HOME/.config/yaxg/conf` if `XDG_CONFIG_DIR` is not set).  
-If a line begins with '#' it is treated as a comment and ignored.  
+A configuration file can saved to `~/.config/yaxg/conf`  
+If a line begins with `#` it is treated as a comment and ignored.  
 The config file accepts the following values:
 
 ```
@@ -55,13 +55,14 @@ callback
   if callback is a script in the config dir, the the quoted filename will automatically be passed to the script
 filename
   a default filename to use when none is provided (must not include extension)
+	defaults to %FT%R:%S:%:z_\$wx\$h
 format
   default format to use, must be either 'png', 'webm', or 'gif'
 slop
   arguments to be passed to slop
 ```
 
-### Examples
+## Examples
 
 * Example CLI usage:
 

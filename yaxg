@@ -18,14 +18,13 @@ colors[blue]=$(tput setaf 4)
 colors[reset]=$(tput sgr0)
 
 usage() {
-  LESS=-FEXR less <<'HELP'
+  LESS=-FEXR less <<HELP
 Usage: yaxg [OPTIONS] [FILE]
 records and saves regions of X11 displays
 
-
 OPTIONS:
 
-  -d  specify duration to record for (only works for webms)
+  -d  specify duration to record for (only works for webms and gifs)
   -D  specify delay
   -F  overwrite file if it exists
   -s  select a region or window
@@ -36,29 +35,26 @@ OPTIONS:
   -w  save as webm (will be overridden by file extension)
       this is the default behavior when -g or -p is not present and the
       filename doesn't end in png or gif
-      press Ctrl+C to stop recording or run `yaxg stop`
-  -v  increase verbosity (can be stacked)
-      first level will show errors parsing config file, consecutive levels
-      will be passed to ffmpeg
+      press Ctrl+C to stop recording or run \`yaxg stop\`
+  -v  increase ffmpeg verbosity (can be stacked)
   -h  print this help
 
 
 SPECIAL STRINGS
 
-Similar to `scrot`, the callback and filename parameters can take format
+Similar to \`scrot\`, the callback and filename parameters can take format
 specifiers that are expanded when encountered. Characters preceded by
-'%' are interpreted directly by the `date` commmand. See `man date` for examples.
+'%' are interpreted directly by the \`date\` commmand. See \`man date\` for examples.
 Characters preceded by '$' are parsed by yaxg and expanded as such:
 
-  $f  quoted image path/filename (only available in callback)
-  $w  image width
-  $h  image height
+  \$f  quoted image path/filename (only available in callback)
+  \$w  image width
+  \$h  image height
 
 
 CONFIGURATION:
 
-A configuration file can saved at $XDG_CONFIG_DIR/yaxg/conf
-(defaults to $HOME/.config/yaxg/conf if XDG_CONFIG_DIR is not set)
+A configuration file can saved at ${config_file/$HOME/\~}
 If a line begins with '#' it is treated as a comment and ignored
 The config file accepts the following values:
 
@@ -66,6 +62,7 @@ The config file accepts the following values:
     a callback string to execute
   filename
     a default filename to use when none is provided (must not include extension)
+    defaults to %FT%R:%S:%:z_\$wx\$h
   format
     default format to use, must be either 'png', 'webm', or 'gif'
   slop
@@ -74,10 +71,10 @@ The config file accepts the following values:
 
 EXAMPLES:
 
-  yaxg '%s-$w-$h'
-  yaxg '%s-$w-$h' -e 'mv $f ~/images/$f'
-  yaxg -s -S '-l -c 0.3,0.4,0.6,0.4' -e 'mv $f ~/images/$f && firefox ~/images/$f'
-  printf '#!/usr/bin/env bash\n[[ "$1" =~ png$ ]] && optipng "$1"\n' \
+  yaxg '%s-\$w-\$h'
+  yaxg '%s-\$w-\$h' -e 'mv \$f ~/images/\$f'
+  yaxg -s -S '-l -c 0.3,0.4,0.6,0.4' -e 'mv \$f ~/images/\$f && firefox ~/images/\$f'
+  printf '#!/usr/bin/env bash\n[[ "\$1" =~ png$ ]] && optipng "\$1"\n' \\
     > ~/.config/yaxg/myScript && chmod +x !#:3 && yaxg -e 'myScript'
 HELP
 }
@@ -282,7 +279,6 @@ fi
 has -v date realpath || die
 
 file=$(realpath -mL "$file")
-mkdir -${verbose:+v}p "${file%/*}" || die "Could not open \"${file%/*}\" for writing."
 
 if [[ -f "$file" ]] && (( overwrite == 0 )); then
   ask "\"$file\" already exists. Overwrite? " || die
