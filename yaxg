@@ -86,10 +86,9 @@ in_term() {
 info() {
   local str
   if in_term; then
-    printf "${colors[blue]}%s${colors[reset]}\n" "$@" > /dev/tty
+    printf "${colors[blue]}%s${colors[reset]}\n" "$*" > /dev/tty
   else
-    str=$(printf '%s' "$@")
-    notify-send 'yaxg' "$str"
+    notify-send 'yaxg' "$*"
   fi
 }
 
@@ -124,7 +123,7 @@ has() {
 
 ask() {
   if in_term; then
-    read -r -n1 -p "$* " ans
+    read -r -n1 -p "$* " ans <> /dev/tty
     printf '\n'
     [[ ${ans^} = Y* ]]
   else
@@ -134,7 +133,7 @@ ask() {
 
 delay() {
   (( delay > 0 )) && for (( i=delay; i > 0; --i )); do
-    (( verbose > 0 )) && if in_term; then
+    if in_term; then
       printf '%s..                     \r' "$i" > /dev/tty
     else
       notify-send -t 1000 "$i.."
@@ -170,10 +169,10 @@ record_gif() {
 record_webm() {
   local loglevel size offset
   loglevel='fatal'
-  (( verbose > 0 )) && loglevel=$(( 8 + verbose * 8 ))
+  (( verbose > 0 )) && loglevel=$(( verbose * 8 ))
   size="${dimensions['w']}x${dimensions['h']}"
   offset="${DISPLAY}.0+${dimensions['x']},${dimensions['y']}"
-  ffmpeg -y -loglevel "$loglevel" \
+  nohup ffmpeg -y -loglevel "$loglevel" \
     -f x11grab \
     -s "$size" \
     -i "$offset" \
@@ -189,7 +188,7 @@ record_webm() {
 
 record_png() {
   local geometry
-  printf -v geometry "%sx%s+%s+%s" "${dimensions[w]}" "${dimensions[h]}" "${dimensions[x]}" "${dimensions[y]}"
+  printf -v geometry "%dx%d+%d+%d" "${dimensions[w]}" "${dimensions[h]}" "${dimensions[x]}" "${dimensions[y]}"
   maim -g "$geometry" "$file"
 }
 
@@ -233,7 +232,13 @@ parse_config_file() {
       slop) slop_args=( $val ) ;;
       *) config_err+=( "unknown key \"$key\" in config file on line $nr" )
     esac
-  done
+  done < "$config_file"
+  if (( ${#config_err[@]} > 0 )); then
+    err 'there were errors parsing config file:'
+    for e in "${config_err[@]}"; do
+      err "  $e"
+    done
+  fi
 }
 
 if [[ "$1" = 'stop' ]]; then
@@ -241,7 +246,7 @@ if [[ "$1" = 'stop' ]]; then
   exit
 fi
 
-[[ -s "$config_file" ]] && parse_config_file < "$config_file"
+[[ -s "$config_file" ]] && parse_config_file
 
 OPTERR=0
 while getopts "d:D:e:FghpsS:vw" opt; do
@@ -260,19 +265,13 @@ while getopts "d:D:e:FghpsS:vw" opt; do
   esac
 done
 shift $((OPTIND-1))
+unset opt OPTARG OPTIND OPTERR
 
 if (( $# == 1 )); then
   file="$1"
   shift
 elif (( $# > 1 )); then
-  die 'too many filenames arguments'
-fi
-
-if (( verbose > 0 && ${#config_err[@]} > 0 )); then
-  err 'there were errors parsing config file:'
-  for e in "${config_err[@]}"; do
-    err "$e"
-  done
+  die 'too many filename arguments'
 fi
 
 [[ -n "$DISPLAY" ]] || die 'Could not grab DISPLAY'
@@ -307,14 +306,14 @@ file=$(parse_file_str "$file")
 
 delay
 [[ "$mode" != 'png' ]] && info 'recording'
-"record_$mode"
+record_$mode
 [[ -e "$file" ]] || die 'error recording file'
 info "saved as $file"
 
 if [[ -n "$callback" ]]; then
   if [[ -x "${config_dir}/${callback%% *}" ]]; then
-    $SHELL -ic "$(parse_callback_str "$config_dir/$callback \$f")"
+    $SHELL -c "$(parse_callback_str "$config_dir/$callback \$f")"
   else
-    $SHELL -ic "$(parse_callback_str "$callback")"
+    $SHELL -c "$(parse_callback_str "$callback")"
   fi
 fi
