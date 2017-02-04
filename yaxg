@@ -97,7 +97,7 @@ err() {
     printf "${colors[red]}%s${colors[reset]}\n" "$@" >&2
   else
     str=$(printf '%s' "$@")
-    notify-send -u critical 'yaxg' "$str"
+    notify-send -t 3000 -u critical 'yaxg' "$str"
   fi
 }
 
@@ -171,7 +171,7 @@ record_webm() {
   (( verbose > 0 )) && loglevel=$(( verbose * 8 ))
   size="${dimensions['w']}x${dimensions['h']}"
   offset="${DISPLAY}.0+${dimensions['x']},${dimensions['y']}"
-  nohup ffmpeg -y -loglevel "$loglevel" \
+  ffmpeg -y -loglevel "$loglevel" \
     -f x11grab \
     -s "$size" \
     -i "$offset" \
@@ -240,7 +240,7 @@ parse_config_file() {
   fi
 }
 
-if [[ "$1" = 'stop' ]]; then
+if [[ "$1" = 'stop' ]] || pgrep -f 'x11grab'; then
   pkill -f x11grab || die 'x11grab not running'
   exit
 fi
