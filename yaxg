@@ -5,15 +5,16 @@ declare mode='webm'
 declare select=0
 declare duration
 declare delay=0
-declare verbose
+declare verbose=0
 declare callback
+declare sound
 declare -a slop_args
 declare -r config_dir="${XDG_CONFIG_DIR:-$HOME/.config}/yaxg"
 declare -r config_file="${config_dir}/conf"
 declare -A dimensions
 declare -A colors
 colors[red]=$(tput setaf 1)
-colors[blue]=$(tput setaf 4)
+colors[green]=$(tput setaf 2)
 colors[reset]=$(tput sgr0)
 
 usage() {
@@ -30,12 +31,14 @@ OPTIONS:
   -S  pass a arguments directly to slop
   -e  execute a script in the config dir or a callback string with the current $SHELL
   -g  save as gif (will be overridden by file extension)
+  -j  save as jpg (will be overridden by file extension)
   -p  save as png (will be overridden by file extension)
   -w  save as webm (will be overridden by file extension)
       this is the default behavior when -g or -p is not present and the
       filename doesn't end in png or gif
       press Ctrl+C to stop recording or run \`yaxg stop\`
   -v  increase ffmpeg verbosity (can be stacked)
+  -q  decrease verbosity (can be stacked)
   -h  print this help
 
 
@@ -84,8 +87,8 @@ in_term() {
 
 info() {
   local str
-  if in_term; then
-    printf "${colors[blue]}%s${colors[reset]}\n" "$*" > /dev/tty
+  (( verbose > -1 )) && if in_term; then
+    printf "${colors[green]}%s${colors[reset]}\n" "$*" > /dev/tty
   else
     notify-send 'yaxg' "$*"
   fi
@@ -93,7 +96,7 @@ info() {
 
 err() {
   local str
-  if in_term; then
+  (( verbose > -1 )) && if in_term; then
     printf "${colors[red]}%s${colors[reset]}\n" "$@" >&2
   else
     str=$(printf '%s' "$@")
@@ -132,7 +135,7 @@ ask() {
 
 delay() {
   (( delay > 0 )) && for (( i=delay; i > 0; --i )); do
-    if in_term; then
+    (( verbose > -1 )) && if in_term; then
       printf '%s..                     \r' "$i" > /dev/tty
     else
       notify-send -t 1000 "$i.."
@@ -146,7 +149,7 @@ get_dimensions() {
   if (( select == 1 )); then
     has -v slop || die
     (( verbose > 0 )) && info 'select a region'
-    scrsize=$(slop "${slop_args[@]}" -f "['x']='%x' ['y']='%y' ['w']='%w' ['h']='%h'") || die 'cancelled'
+    scrsize=$(slop "${slop_args[@]}" -f "['x']='%x' ['y']='%y' ['w']='%w' ['h']='%h'" 2> /dev/null) || die 'cancelled'
     eval "dimensions=( $scrsize )"
   else
     has -v xdpyinfo || die
@@ -155,7 +158,43 @@ get_dimensions() {
   fi
 }
 
-record_gif() {
+capture_screen() {
+  local loglevel size offset ffmpeg_opts
+  info 'recording'
+  ffmpeg_opts=()
+  loglevel='fatal'
+  (( verbose > 0 )) && loglevel=$(( verbose * 8 ))
+  size="${dimensions['w']}x${dimensions['h']}"
+  offset="${DISPLAY}.0+${dimensions['x']},${dimensions['y']}"
+  [[ -n "$sound" ]] && ffmpeg_opts+=( -f alsa -ac 2 -i hw:'1,1' )
+  ffmpeg_opts+=(
+    -f x11grab
+    -s "$size"
+    -i "$offset"
+    ${duration:+-t "$duration"}
+    -c:v libx264
+    -crf 18
+    -preset ultrafast
+    -r 60
+    -pix_fmt yuv420p
+  )
+  ffmpeg -y -loglevel "$loglevel" "${ffmpeg_opts[@]}" -f mp4 "${file%.*}.mp4"
+}
+
+transcode_webm() {
+  local loglevel ffmpeg_opts=()
+  info 'transcoding to webm...'
+  (( verbose > 0 )) && loglevel=$( (( verbose * 8 )) )
+  ffmpeg_opts=( -c:v libvpx-vp9 -b:v 1500k -keyint_min 150 -g 150 -f webm -dash 1)
+  ffmpeg -y -loglevel "$loglevel" -i "${file%.*}.mp4" "${ffmpeg_opts[@]}" "$file"
+}
+
+transcode_gif() {
+  false
+}
+
+capture_gif() {
+  info 'recording'
   byzanz-record \
     --duration="${duration:-10}" \
     --x="${dimensions['x']}" \
@@ -165,27 +204,18 @@ record_gif() {
     "$file"
 }
 
-record_webm() {
-  local loglevel size offset
-  loglevel='fatal'
-  (( verbose > 0 )) && loglevel=$(( verbose * 8 ))
-  size="${dimensions['w']}x${dimensions['h']}"
-  offset="${DISPLAY}.0+${dimensions['x']},${dimensions['y']}"
-  ffmpeg -y -loglevel "$loglevel" \
-    -f x11grab \
-    -s "$size" \
-    -i "$offset" \
-    ${duration:+-t $duration} \
-    -c:v libvpx \
-    -b:v 2400k \
-    -preset veryslow \
-    -r 60 \
-    -threads 4 \
-    -pix_fmt yuv444p \
-    -f webm "$file"
+capture_webm() {
+  capture_screen
+  # [[ -n "$keep" ]] || rm "${file%.*}.mp4"
 }
 
-record_png() {
+capture_webm() {
+  capture_screen
+  transcode_webm
+  # [[ -n "$keep" ]] || rm "${file%.*}.mp4"
+}
+
+capture_png() {
   local geometry
   printf -v geometry "%dx%d+%d+%d" "${dimensions[w]}" "${dimensions[h]}" "${dimensions[x]}" "${dimensions[y]}"
   maim -g "$geometry" "$file"
@@ -222,7 +252,7 @@ parse_config_file() {
       callback) callback="$val" ;;
       filename) file="$val" ;;
       format)
-        if [[ $val =~ png|webm|gif ]]; then
+        if [[ $val =~ jpg|png|webm|gif|mp4 ]]; then
           mode="$val"
         else
           config_err+=( "unknown format \"$val\" in config file on line $nr" )
@@ -242,21 +272,25 @@ parse_config_file() {
 
 if [[ "$1" = 'stop' ]] || pgrep -f 'x11grab'; then
   pkill -f x11grab || die 'x11grab not running'
+  info 'recording stopped'
   exit
 fi
 
 [[ -s "$config_file" ]] && parse_config_file
 
 OPTERR=0
-while getopts "d:D:e:FghpsS:vw" opt; do
+while getopts "d:D:e:S:Faghqpsvw" opt; do
   case "$opt" in
+    a) sound=1 ;;
     d) duration="$OPTARG" ;;
     D) delay="$OPTARG" ;;
     e) callback="$OPTARG" ;;
     F) overwrite=1 ;;
     g) mode='gif' ;;
     h) usage; exit 0 ;;
+    j) mode='jpg' ;;
     p) mode='png' ;;
+    q) (( --verbose )) ;;
     s) select=1 ;;
     S) slop_args=( $OPTARG ) ;;
     v) (( ++verbose )) ;;
@@ -288,24 +322,25 @@ case "$file" in
   *.gif)
     has byzanz-record || die 'need byzanz-record for recording gifs'
     mode='gif' ;;
-  *.png)
+  *.png|*.jpg)
     has maim || die 'need maim for capturing screenshots'
     mode='png' ;;
-  *.webm)
-    has ffmpeg || die 'need ffmpeg for recording webms'
+  *.webm|*.mp4)
+    has ffmpeg || die 'need ffmpeg for recording video'
     mode='webm' ;;
   *)
     case "$mode" in
+      mp4) file+='.mp4' ;;
       gif) file+='.gif' ;;
       webm) file+='.webm' ;;
       png) file+='.png' ;;
+      jpg) file+='.jpg' ;;
     esac
 esac
 file=$(parse_file_str "$file")
 
 delay
-[[ "$mode" != 'png' ]] && info 'recording'
-record_$mode
+capture_$mode
 [[ -e "$file" ]] || die 'error recording file'
 info "saved as $file"
 
