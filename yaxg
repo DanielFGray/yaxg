@@ -102,7 +102,7 @@ err() {
 }
 
 die() {
-  [[ -n "$1" ]] && err "$1"
+  [[ -n $1 ]] && err "$1"
   exit 1
 }
 
@@ -112,7 +112,7 @@ has() {
     v=1
     shift
   fi
-  for c; do c="${c%% *}"
+  for c in "${@%% *}"; do
     if ! command -v "$c" &> /dev/null; then
       (( v > 0 )) && err "$c not found"
       return 1
@@ -175,7 +175,7 @@ record_webm() {
     -f x11grab \
     -s "$size" \
     -i "$offset" \
-    ${duration:+-t $duration} \
+    ${duration:+-t "$duration"} \
     -c:v libvpx \
     -b:v 2400k \
     -preset veryslow \
@@ -194,15 +194,15 @@ record_png() {
 parse_file_str() {
   local str h w
   str=$(date +"$1")
-  str="${str//\$h/${dimensions[h]}}"
-  str="${str//\$w/${dimensions[w]}}"
+  str=${str//\$h/${dimensions[h]}}
+  str=${str//\$w/${dimensions[w]}}
   printf '%s' "$str"
 }
 
 parse_callback_str() {
   local str
   str=$(parse_file_str "$1")
-  str="${str//\$f/\"$file\"}"
+  str=${str//\$f/\"$file\"}
   printf '%s' "$str"
 }
 
@@ -211,19 +211,18 @@ parse_config_file() {
   config_err=()
   while IFS= read -r line; do
     (( ++nr ))
-    [[ -z "$line" || "$line" = '#'* ]] && continue
-    read -r key <<< "${line%% *}"
-    read -r val <<< "${line#* }"
-    if [[ -z "$val" ]]; then
+    [[ -z $line || $line = '#'* ]] && continue
+    read -r key val <<< "$line"
+    if [[ -z $val ]]; then
       config_err+=( "missing value for \"$key\" in config file on line $nr" )
       continue
     fi
-    case "$key" in
-      callback) callback="$val" ;;
-      filename) file="$val" ;;
+    case $key in
+      callback) callback=$val ;;
+      filename) file=$val ;;
       format)
         if [[ $val =~ png|webm|gif ]]; then
-          mode="$val"
+          mode=$val
         else
           config_err+=( "unknown format \"$val\" in config file on line $nr" )
         fi
@@ -245,14 +244,14 @@ if [[ "$1" = 'stop' ]] || pgrep -f 'x11grab'; then
   exit
 fi
 
-[[ -s "$config_file" ]] && parse_config_file
+[[ -s $config_file ]] && parse_config_file
 
 OPTERR=0
 while getopts "d:D:e:FghpsS:vw" opt; do
-  case "$opt" in
-    d) duration="$OPTARG" ;;
-    D) delay="$OPTARG" ;;
-    e) callback="$OPTARG" ;;
+  case $opt in
+    d) duration=$OPTARG ;;
+    D) delay=$OPTARG ;;
+    e) callback=$OPTARG ;;
     F) overwrite=1 ;;
     g) mode='gif' ;;
     h) usage; exit 0 ;;
@@ -263,28 +262,28 @@ while getopts "d:D:e:FghpsS:vw" opt; do
     w) mode='webm' ;;
   esac
 done
-shift $((OPTIND-1))
+shift "$((OPTIND-1))"
 unset opt OPTARG OPTIND OPTERR
 
 if (( $# == 1 )); then
-  file="$1"
+  file=$1
   shift
 elif (( $# > 1 )); then
   die 'too many filename arguments'
 fi
 
-[[ -n "$DISPLAY" ]] || die 'Could not grab DISPLAY'
+[[ -n $DISPLAY ]] || die 'Could not grab DISPLAY'
 has -v date realpath || die
 
 file=$(realpath -mL "$file")
 
-if [[ -f "$file" ]] && (( overwrite == 0 )); then
+if [[ -f $file ]] && (( overwrite == 0 )); then
   ask "\"$file\" already exists. Overwrite? " || die
 fi
 
 get_dimensions
 
-case "$file" in
+case $file in
   *.gif)
     has byzanz-record || die 'need byzanz-record for recording gifs'
     mode='gif' ;;
@@ -295,7 +294,7 @@ case "$file" in
     has ffmpeg || die 'need ffmpeg for recording webms'
     mode='webm' ;;
   *)
-    case "$mode" in
+    case $mode in
       gif) file+='.gif' ;;
       webm) file+='.webm' ;;
       png) file+='.png' ;;
@@ -304,12 +303,12 @@ esac
 file=$(parse_file_str "$file")
 
 delay
-[[ "$mode" != 'png' ]] && info 'recording'
-record_$mode
-[[ -e "$file" ]] || die 'error recording file'
+[[ $mode != 'png' ]] && info 'recording'
+"record_$mode"
+[[ -e $file ]] || die 'error recording file'
 info "saved as $file"
 
-if [[ -n "$callback" ]]; then
+if [[ -n $callback ]]; then
   if [[ -x "${config_dir}/${callback%% *}" ]]; then
     $SHELL -c "$(parse_callback_str "$config_dir/$callback \$f")"
   else
