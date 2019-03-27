@@ -5,7 +5,7 @@ declare mode='webm'
 declare select=0
 declare duration
 declare delay=0
-declare audio=0
+declare audio
 declare verbose
 declare callback
 declare -a slop_args
@@ -183,7 +183,7 @@ record_webm() {
     -b:v 2400k \
     -preset veryslow \
     -r 60 \
-    -threads 4 \
+    -threads "$(nproc)" \
     -pix_fmt yuv444p \
     -f webm "$file"
 }
