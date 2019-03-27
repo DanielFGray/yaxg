@@ -5,6 +5,7 @@ declare mode='webm'
 declare select=0
 declare duration
 declare delay=0
+declare audio=0
 declare verbose
 declare callback
 declare -a slop_args
@@ -23,6 +24,7 @@ records and saves regions of X11 displays
 
 OPTIONS:
 
+  -a  record audio (only works for webms)
   -d  specify duration to record for (only works for webms and gifs)
   -D  specify delay
   -F  overwrite file if it exists
@@ -175,6 +177,7 @@ record_webm() {
     -f x11grab \
     -s "$size" \
     -i "$offset" \
+    ${audio:+-f pulse -ac 2 -i default} \
     ${duration:+-t $duration} \
     -c:v libvpx \
     -b:v 2400k \
@@ -248,8 +251,9 @@ fi
 [[ -s "$config_file" ]] && parse_config_file
 
 OPTERR=0
-while getopts "d:D:e:FghpsS:vw" opt; do
+while getopts "ad:D:e:FghpsS:vw" opt; do
   case "$opt" in
+    a) audio=1 ;;
     d) duration="$OPTARG" ;;
     D) delay="$OPTARG" ;;
     e) callback="$OPTARG" ;;

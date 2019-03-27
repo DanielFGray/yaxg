@@ -16,6 +16,7 @@ yaxg [OPTIONS] [FILE]
 ### Options
 
 ```
+-a  record audio (only works for webms)
 -d  specify duration to record for (only works for webms)
 -D  specify delay
 -F  overwrite file if it exists
